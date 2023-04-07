@@ -1,9 +1,28 @@
 import shutil
 from typing import List
 from fastapi import FastAPI, Query, Path, Body, UploadFile, File
-from schemas import Author, Book
+from routes import routes
+from starlette.responses import Response
+from starlette.requests import Request
+from core.db import SessionLocal
 
 app = FastAPI()
+
+
+@app.middleware('http')   # при каждом запросе к API
+# создается сессия с БД
+async def db_session_middleware(request: Request, call_next):
+    response = Response('Internal server error', status_code=500)
+    try:
+        request.state.db = SessionLocal()  # открытие сессии
+        response = await call_next(request)
+    finally:
+        request.state.db.close()
+    return response
+
+app.include_router(routes)
+
+
 
 
 # # загрузка
@@ -27,29 +46,3 @@ app = FastAPI()
 #     return {'key': pk, 'q': q}
 #
 #
-# @app.get('/user/{pk}/items/{item}')
-# def get_user_item(pk: int, item: str):
-#     return {'user': pk, 'item': item}
-
-
-@app.get('/book')
-def get_book(q: List[str] = Query(['test', 'test2'], description='Search '
-                                                                 'book',
-                                  deprecated=True)):
-    return q
-
-
-@app.post('/book/')
-def create_book(item: Book, author: Author, qantity: int = Body(...)):
-    return {"item": item, "author": author, "qantity": qantity}
-
-
-@app.post('/author/')
-def create_author(author: Author = Body(..., embed=True)):
-    return {"author": author}
-
-
-@app.get('/book/{pk}')
-def get_single_book(pk: int = Path(..., gt=1, le=20), pages: int = Query(
-    None, gt=10, le=500)):
-    return {"pk": pk, "pages": pages}
